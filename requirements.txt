@@ -1,0 +1,6 @@
+databricks-sdk
+mlflow
+openai
+langchain
+sentence-transformers
+beautifulsoup4
