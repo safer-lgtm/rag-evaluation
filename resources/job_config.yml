@@ -1,36 +1,17 @@
-workflow_default: &workflow_default
-  name: workflow_default
-  job_clusters:
-    - job_cluster_key: job_cluster_small
-      new_cluster: ${var.job_cluster_small}
-  queue:
-    enabled: true
-  max_concurrent_runs: 1
-
-task_data_intake_drive_scraping: &data_intake_drive_scraping
-  task_key: crawl_drive
-  job_cluster_key: job_cluster_small
-  notebook_task:
-    notebook_path: ../src/notebook/sharepoint_drive_scraping.py
-    base_parameters:
-      target: ${bundle.target}
-      catalog: ${var.catalog}
-      schema: ${var.schema}
-      volume: ${var.volume}
-
-  run_if: ALL_SUCCESS
-
 # The main job for rag_evaluation.
 resources:
   jobs:
-    rag_evaluation_job:
-      name: rag_evaluation_job
-
+    bot_intake_drive_scraping:
+      name: bot_intake_drive_scraping
       tasks:
-        intake_drive_scraping:
-          <<: *workflow_default
-          name: bot_intake_drive_scraping
-          tasks:
-            - task_key: sms_wiki
-              <<: *data_intake_drive_scraping
-              job_cluster_key: job_cluster_large
+        - task_key: crawl_drive
+          job_cluster_key: ${var.job_cluster_small}
+          notebook_task:
+            notebook_path: ../src/notebook/sharepoint_drive_scraping.py
+            base_parameters:
+              target: ${bundle.target}
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              volume: ${var.volume}
+
+          run_if: ALL_SUCCESS
