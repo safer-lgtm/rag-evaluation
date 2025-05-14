@@ -1,0 +1,60 @@
+# This is a Databricks asset bundle definition for rag_evaluation.
+# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+bundle:
+  name: rag_evaluation
+  uuid: 5dfc96c5-a95b-4974-ac37-a0d74822c42a
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: The catalog to use
+    default: workspace
+
+  schema:
+    description: The schema name to use in databricks
+    default: default
+
+  volume:
+    description: Volume where raw data is stored
+    default: /Volumes/workspace/default/raw_data
+
+  job_cluster_small:
+    type: complex
+    description: "Compute for small datasets"
+    default:
+      spark_version: 15.4.x-scala2.12
+      aws_attributes:
+        first_on_demand: 1
+        availability: SPOT_WITH_FALLBACK
+        zone_id: auto
+        spot_bid_price_percent: 50
+        ebs_volume_count: 0
+      node_type_id: r6gd.xlarge
+      custom_tags:
+        cluster_type: generic-job
+        Team: dataconnect
+        CostCenter: "985010"
+      enable_elastic_disk: true
+      data_security_mode: SINGLE_USER
+      runtime_engine: PHOTON
+      autoscale:
+        min_workers: 1
+        max_workers: 10
+
+targets:
+  dev:
+    # The default target uses 'mode: development' to create a development copy.
+    # - Deployed resources get prefixed with '[dev my_user_name]'
+    # - Any job schedules and triggers are paused by default.
+    # See also https://docs.databricks.com/dev-tools/bundles/deployment-modes.html.
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-1eef59ee-d552.cloud.databricks.com
+      root_path: /Workspace/Users/ryfy1103.saf1999@gmail.com/.bundle/${bundle.name}/${bundle.target}
+
+    permissions:
+      - user_name: ryfy1103.saf1999@gmail.com
+        level: CAN_MANAGE
