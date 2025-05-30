@@ -1,17 +1,31 @@
-# The main job for rag_evaluation.
+workflow_default: &workflow_default
+  name: workflow_default
+  job_clusters:
+    - job_cluster_key: job_cluster_small
+      new_cluster: ${var.job_cluster_small}
+  queue:
+    enabled: true
+  max_concurrent_runs: 1
+
+task_data_intake_scraping: &data_intake_drive_scraping
+  task_key: crawl_drive
+  job_cluster_key: ${var.job_cluster_small}
+  notebook_task:
+    notebook_path: ../src/notebook/sharepoint_drive_scraping.py
+    base_parameters:
+      target: ${bundle.target}
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      volume: ${var.volume}
+      site_name: teams/WIKI
+      source_data_folder: sharepoint_doc_data
+  run_if: ALL_SUCCESS
+
 resources:
   jobs:
-    bot_intake_drive_scraping:
-      name: bot_intake_drive_scraping
+    intake_drive_scraping:
+      <<: *workflow_default
+      name: intake_drive_scraping
       tasks:
-        - task_key: crawl_drive
-          job_cluster_key: ${var.job_cluster_small}
-          notebook_task:
-            notebook_path: ../src/notebook/sharepoint_drive_scraping.py
-            base_parameters:
-              target: ${bundle.target}
-              catalog: ${var.catalog}
-              schema: ${var.schema}
-              volume: ${var.volume}
+        <<: *data_intake_drive_scraping
 
-          run_if: ALL_SUCCESS
