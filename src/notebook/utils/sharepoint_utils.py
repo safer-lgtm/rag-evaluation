@@ -1,6 +1,8 @@
 import requests
 import os
 from bs4 import BeautifulSoup
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.appName("SharePointProcessor").getOrCreate()
 
 # Token holen
 def get_access_token(client_id, client_secret, token_url):
