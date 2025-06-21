@@ -22,7 +22,7 @@ variables:
 
   job_cluster_small:
     type: complex
-    description: "Compute for small datasets"
+    description: "Compute Cluster"
     default:
       spark_version: 15.4.x-scala2.12
       aws_attributes:
@@ -34,7 +34,7 @@ variables:
       node_type_id: r6gd.xlarge
       custom_tags:
         cluster_type: generic-job
-        Team: dataconnect
+        Team: ai
         CostCenter: "985010"
       enable_elastic_disk: true
       data_security_mode: SINGLE_USER
