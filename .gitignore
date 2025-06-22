@@ -23,6 +23,9 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+.idea/
+config.txt
+.databricks/
 
 # Unit test / coverage reports
 .cache
