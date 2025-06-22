@@ -27,7 +27,7 @@ dbutils.widgets.text("site_name", "teams/WIKI", "Site Name") # nur ab "teams" ge
 dbutils.widgets.text("volume", "raw_data", "Volume name")
 dbutils.widgets.text("source_data_folder", "sharepoint_doc_data", "Sharepoint Folder")
 dbutils.widgets.dropdown("catalog", "development", ["development", "production"], "Catalog")
-dbutils.widgets.text("schema", "sms_sales_assistant", "Schema Name")
+dbutils.widgets.text("schema", "default", "Schema Name")
 
 # COMMAND ----------
 site_name = dbutils.widgets.get("site_name")
