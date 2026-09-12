@@ -23,12 +23,25 @@ def get_access_token(client_id, client_secret, token_url):
 def get_site_info(access_token, site_name):
     headers = {"Authorization": f"Bearer {access_token}"}
     graph_api_url = "https://graph.microsoft.com/v1.0"
-    site_url = f"{graph_api_url}/sites/name.sharepoint.com:/{site_name}"
-    response = requests.get(site_url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
+
+    # Fügt man den Host ("name.sharepoint.com") mit an, kann direkt gesucht werden, z.B. "name.sharepoint.com:/teams/WIKI"
+    if "." in site_name.split("/")[0]:
+        site_url = f"{graph_api_url}/sites/{site_name}"
+        response = requests.get(site_url, headers=headers)
+        if response.status_code == 200:
+            return response.json()
         raise RuntimeError(f"❌ Fehler beim Abrufen der Site-Info ({site_name}): {response.text}")
+
+    # Andernfalls per Suche nach dem Server-relative-Pfad suchen, z.B. "teams/WIKI"
+    response = requests.get(f"{graph_api_url}/sites?search={site_name}", headers=headers)
+    if response.status_code != 200:
+        raise RuntimeError(f"❌ Fehler beim Suchen der Site ({site_name}): {response.text}")
+
+    for site in response.json().get("value", []):
+        if site.get("webUrl", "").endswith(f"/{site_name}"):
+            return site
+
+    raise RuntimeError(f"❌ Site '{site_name}' wurde nicht gefunden.")
 
 # Page Content
 def extract_text_from_html(html_content):
@@ -57,7 +70,8 @@ def download_file(source_data_path, file_name, download_url):
 def write_source_entry(file_path, file_name, file_url, source_table, timestamp, last_modified, relevant, category, file_id):
     r = spark.sql(f"SELECT * FROM {source_table} WHERE document_id = '{file_id}'")
 
-    new_data = [(str(file_path), str(file_name), str(file_url), timestamp, last_modified, bool(relevant), str(category), str(file_id))]
+    new_data = [(str(file_path), str(file_name), str(file_url), timestamp,
+                 str(last_modified) if last_modified else None, bool(relevant), str(category), str(file_id))]
     df_new = spark.createDataFrame(new_data, ['document_path', 'document_name', 'source_url', 'timestamp', 'last_modified', 'relevant', 'category', 'document_id'])
 
     if r.isEmpty():

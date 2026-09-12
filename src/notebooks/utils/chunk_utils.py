@@ -6,7 +6,7 @@ def write_chunks_if_not_exists(spark, chunk, source_url, document_id, chunk_tabl
     if len(c) >= min_chunk_size:
         data = [[str(uuid.uuid4()), c, source_url, datetime.datetime.now(), document_id]]
 
-        df = spark.createDataFrame(data=data, schema=['id', 'chunk', 'url', 'timestamp', 'document_id'])
+        df = spark.createDataFrame(data=data, schema=['chunk_id', 'chunk', 'url', 'timestamp', 'document_id'])
 
         r = spark.sql(f"""select * from {chunk_table} where chunk = "{c}" """)
         if r.isEmpty():
