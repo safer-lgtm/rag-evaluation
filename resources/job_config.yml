@@ -3,10 +3,15 @@ workflow_default: &workflow_default
   queue:
     enabled: true
   max_concurrent_runs: 1
+  performance_target: PERFORMANCE_OPTIMIZED
+  environments:
+    - environment_key: Default
+      spec:
+        environment_version: "5"
 
 task_data_intake_pipeline: &data_intake_chunks
-  task_key: chunk_data
-  #job_cluster_key: ${var.job_cluster_small}
+  task_key: chunk
+  environment_key: Default
   notebook_task:
     notebook_path: ../src/notebooks/chunks_data.py
     base_parameters:
@@ -29,4 +34,4 @@ resources:
       <<: *workflow_default
       name: intake_chunks
       tasks:
-        <<: *data_intake_chunks
+        - <<: *data_intake_chunks
