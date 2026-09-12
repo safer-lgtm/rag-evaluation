@@ -44,9 +44,9 @@ In many real-world applications, fast and accurate access to domain-specific kno
 
 1. **Install the Databricks CLI**
    Follow the instructions at:
-   👉 [https://docs.databricks.com/dev-tools/cli/databricks-cli.html](https://docs.databricks.com/dev-tools/cli/databricks-cli.html)
+   👉 [Databricks CLI](https://docs.databricks.com/dev-tools/cli/databricks-cli.html)
     Or easily use Chocolatey:
-   👉 [https://community.chocolatey.org/packages/databricks-cli]
+   👉 [Chocolatey](https://community.chocolatey.org/packages/databricks-cli)
     
     Run this to insure databricks-cli is installed 
 
@@ -76,7 +76,7 @@ name: rag-eval
 channels:
   - defaults
 dependencies:
-  - python=3.10
+  - python=3.12
   - pip
   - pip:
       - databricks-sdk
