@@ -51,7 +51,7 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://dbc-1eef59ee-d552.cloud.databricks.com
+      host: https://dbc-4af77f7d-3b85.cloud.databricks.com
       root_path: /Workspace/Users/ryfy1103.saf1999@gmail.com/.bundle/${bundle.name}/${bundle.target}
 
     permissions:

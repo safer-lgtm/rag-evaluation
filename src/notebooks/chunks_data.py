@@ -14,6 +14,9 @@ from mlflow.utils.databricks_utils import dbutils
 # MAGIC %pip install PyMuPDF
 # MAGIC %pip install PyPDF2
 # MAGIC %pip install Pillow pytesseract pdf2image
+# MAGIC %pip install python-docx
+# MAGIC %pip install python-pptx
+# MAGIC %pip install pandas openpyxl
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
@@ -75,7 +78,7 @@ sys.path.append(os.path.dirname(os.getcwd()))
 
 # COMMAND ----------
 from utils.chunk_utils import write_chunks_if_not_exists
-from utils.parser_utils import parse_pdf
+from utils.parser_utils import parse_pdf, parse_docx, parse_pptx, parse_xlsx
 
 files = spark.sql(
     f"SELECT * FROM {control_table_fullname} WHERE document_id NOT IN (SELECT document_id FROM {chunk_table_fullname})").collect()
@@ -86,11 +89,25 @@ for file in files:
             'Übersicht freigegebene Werbeformen je Domain.xlsx'):  # empty file
         print(f"Skipping empty file: {file['document_path']}")
         continue
-    if file['document_path'].endswith('.pdf'):
-        chunks = parse_pdf(file_path=file['document_path'], chunk_strategy=chunk_strategy, chunk_size=chunk_size,
-                           chunk_overlap=chunk_overlap, min_chunk_size=min_chunk_size)
-        for chunk in chunks:
-            # print(chunk)
-            write_chunks_if_not_exists(spark, chunk, file['source_url'], file['document_id'], chunk_table_fullname, min_chunk_size)
+
+    file_path = file['document_path']
+    kwargs = dict(chunk_strategy=chunk_strategy, chunk_size=chunk_size, chunk_overlap=chunk_overlap,
+                  min_chunk_size=min_chunk_size)
+
+    if file_path.endswith('.pdf'):
+        chunks = parse_pdf(file_path=file_path, **kwargs)
+    elif file_path.endswith('.docx'):
+        chunks = parse_docx(file_path=file_path, **kwargs)
+    elif file_path.endswith('.pptx'):
+        chunks = parse_pptx(file_path=file_path, **kwargs)
+    elif file_path.endswith('.xlsx'):
+        chunks = parse_xlsx(file_path=file_path, **kwargs)
+    else:
+        print(f"Skipping unsupported file type: {file_path}")
+        continue
+
+    for chunk in chunks:
+        # print(chunk)
+        write_chunks_if_not_exists(spark, chunk, file['source_url'], file['document_id'], chunk_table_fullname, min_chunk_size)
 
 

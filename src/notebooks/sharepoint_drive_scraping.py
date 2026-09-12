@@ -9,13 +9,14 @@
 # COMMAND ----------
 import os
 import sys
+import datetime
 # Add the current working directory to the Python path, as Databricks only processes folder types, not packages
 sys.path.append(os.path.dirname(os.getcwd()))
 # COMMAND ----------
 import importlib
 from utils import sharepoint_utils
 importlib.reload(sharepoint_utils)
-from utils.sharepoint_utils import get_access_token, get_site_info, download_file
+from utils.sharepoint_utils import get_access_token, get_site_info, download_file, write_source_entry
 import requests
 
 # COMMAND ----------
@@ -28,6 +29,7 @@ dbutils.widgets.text("volume", "raw_data", "Volume name")
 dbutils.widgets.text("source_data_folder", "sharepoint_doc_data", "Sharepoint Folder")
 dbutils.widgets.dropdown("catalog", "development", ["development", "production"], "Catalog")
 dbutils.widgets.text("schema", "default", "Schema Name")
+dbutils.widgets.text("control_table", "sharepoint_doc_control", "Control table name")
 
 # COMMAND ----------
 site_name = dbutils.widgets.get("site_name")
@@ -35,8 +37,10 @@ volume = dbutils.widgets.get("volume")
 source_data_folder = dbutils.widgets.get("source_data_folder")
 catalog = dbutils.widgets.get("catalog")
 schema = dbutils.widgets.get("schema")
+control_table = dbutils.widgets.get("control_table")
 
 source_data_path = f"/Volumes/{catalog}/{schema}/{volume}/{source_data_folder}"
+control_table_fullname = f"{catalog}.{schema}.{control_table}"
 # fixed configs
 ALLOWED_FILE_TYPES = ["docx", "pptx", "pdf", "xlsx"]
 GRAPH_API_URL = "https://graph.microsoft.com/v1.0"
@@ -46,7 +50,7 @@ GRAPH_API_URL = "https://graph.microsoft.com/v1.0"
 # MAGIC # crawl sharepoint documents (DriveFiles)
 # COMMAND ----------
 # Gemeinsame Funktion zum Crawlen von Dateien und Ordnern
-def crawl_items(client_id, client_secret, token_url, items, source_data_path):
+def crawl_items(client_id, client_secret, token_url, items, source_data_path, control_table_fullname):
     for item in items:
         if "file" in item:  # Datei gefunden
             file_name = item["name"]
@@ -55,6 +59,10 @@ def crawl_items(client_id, client_secret, token_url, items, source_data_path):
 
             if file_name.lower().endswith(tuple(ALLOWED_FILE_TYPES)):
                 download_file(source_data_path, file_name, download_url)
+                file_path = os.path.join(source_data_path, file_name)
+                last_modified = item.get("fileSystemInfo", {}).get("lastModifiedDateTime")
+                write_source_entry(file_path, file_name, file_url, control_table_fullname,
+                                   datetime.datetime.now(), last_modified, True, "", item["id"])
 
         elif "folder" in item:  # Ordner gefunden
             print(f"📁 [Ordner] {item['name']}")
@@ -62,11 +70,11 @@ def crawl_items(client_id, client_secret, token_url, items, source_data_path):
             drive_id = item["parentReference"]["driveId"]
             child_folder_url = f"{GRAPH_API_URL}/drives/{drive_id}/items/{child_folder_id}/children"
             # Kindordner rekursiv crawlen
-            crawl_drive(client_id, client_secret, token_url, child_folder_url, source_data_path)
+            crawl_drive(client_id, client_secret, token_url, child_folder_url, source_data_path, control_table_fullname)
 
 # COMMAND ----------
 # Dateien & folder rekursiv durchsuchen
-def crawl_drive(client_id, client_secret, token_url, drive_url, source_data_path):
+def crawl_drive(client_id, client_secret, token_url, drive_url, source_data_path, control_table_fullname):
     access_token = get_access_token(client_id, client_secret, token_url)
     headers = {"Authorization": f"Bearer {access_token}"}
     while drive_url:
@@ -74,7 +82,7 @@ def crawl_drive(client_id, client_secret, token_url, drive_url, source_data_path
         if response.status_code == 200:
             data = response.json()
             items = data.get("value", [])
-            crawl_items(client_id, client_secret, token_url, items, source_data_path)  # Aufruf der gemeinsamen Funktion
+            crawl_items(client_id, client_secret, token_url, items, source_data_path, control_table_fullname)  # Aufruf der gemeinsamen Funktion
 
             # Nächste Seite abrufen, falls vorhanden
             drive_url = data.get("@odata.nextLink")
@@ -94,7 +102,9 @@ def main(client_id, client_secret, tenant_id, site_name, source_data_path, contr
     site_id = site_info.get("id")
     drive_url = f"{GRAPH_API_URL}/sites/{site_id}/drive/root/children"
 
-    crawl_drive(client_id, client_secret, token_url, drive_url, source_data_path)
+    crawl_drive(client_id, client_secret, token_url, drive_url, source_data_path, control_table_fullname)
 
 # COMMAND ----------
-main(client_id, client_secret, tenant_id, site_name, source_data_path)
+spark.sql(f"CREATE TABLE IF NOT EXISTS {control_table_fullname} (document_path STRING NOT NULL, document_name STRING NOT NULL, source_url STRING, timestamp TIMESTAMP, last_modified STRING, relevant BOOLEAN, category STRING, document_id STRING NOT NULL)")
+
+main(client_id, client_secret, tenant_id, site_name, source_data_path, control_table_fullname)
