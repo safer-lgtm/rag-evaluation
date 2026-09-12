@@ -23,7 +23,7 @@ from mlflow.utils.databricks_utils import dbutils
 # COMMAND ----------
 
 dbutils.widgets.text('volume', 'raw_data', 'Volume')
-dbutils.widgets.dropdown('catalog', 'development', ['development', 'production'], 'Catalog')
+dbutils.widgets.text('catalog', 'workspace', 'Catalog')
 dbutils.widgets.text("schema", "default", "Schema Name")
 dbutils.widgets.text('control_table', 'sharepoint_doc_control', 'Control table name')
 dbutils.widgets.text('chunk_table', 'chunks', 'Chunk table name')
