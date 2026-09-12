@@ -7,20 +7,6 @@ workflow_default: &workflow_default
     enabled: true
   max_concurrent_runs: 1
 
-task_data_intake_scraping: &data_intake_drive_scraping
-  task_key: crawl_drive
-  job_cluster_key: ${var.job_cluster_small}
-  notebook_task:
-    notebook_path: ../src/notebooks/sharepoint_drive_scraping.py
-    base_parameters:
-      target: ${bundle.target}
-      catalog: ${var.catalog}
-      schema: ${var.schema}
-      volume: ${var.volume}
-      site_name: teams/WIKI
-      source_data_folder: sharepoint_doc_data
-  run_if: ALL_SUCCESS
-
 task_data_intake_pipeline: &data_intake_chunks
   task_key: chunk_data
   job_cluster_key: ${var.job_cluster_small}
@@ -33,6 +19,7 @@ task_data_intake_pipeline: &data_intake_chunks
       schema: ${var.schema}
       control_table: sharepoint_doc_control
       chunk_table: chunks
+      source_data_folder: ""
       chunk_strategy: chunked
       chunk_size: 800
       chunk_overlap: 200
@@ -41,16 +28,8 @@ task_data_intake_pipeline: &data_intake_chunks
 
 resources:
   jobs:
-    intake_drive_scraping:
-      <<: *workflow_default
-      name: intake_drive_scraping
-      tasks:
-        <<: *data_intake_drive_scraping
-
     intake_chunks:
       <<: *workflow_default
       name: intake_chunks
       tasks:
         <<: *data_intake_chunks
-
-

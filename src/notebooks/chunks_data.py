@@ -1,10 +1,6 @@
 # Databricks notebook source
 # COMMAND ----------
 # MAGIC %md
-# MAGIC # crawl sharepoint documents (DriveFiles)
-# COMMAND ----------
-# Databricks notebook source
-# MAGIC %md
 # MAGIC ## Install dependencies
 from mlflow import spark
 from mlflow.utils.databricks_utils import dbutils
@@ -26,13 +22,12 @@ from mlflow.utils.databricks_utils import dbutils
 
 # COMMAND ----------
 
-# variable | default value | show name
 dbutils.widgets.text('volume', 'raw_data', 'Volume')
 dbutils.widgets.dropdown('catalog', 'development', ['development', 'production'], 'Catalog')
 dbutils.widgets.text("schema", "default", "Schema Name")
 dbutils.widgets.text('control_table', 'sharepoint_doc_control', 'Control table name')
 dbutils.widgets.text('chunk_table', 'chunks', 'Chunk table name')
-dbutils.widgets.text('source_data_folder', 'sharepoint_doc_data', 'Volume data name')
+dbutils.widgets.text('source_data_folder', '', 'Volume subfolder (leave empty for root)')
 dbutils.widgets.text('chunk_size', '800', 'Chunk size')
 dbutils.widgets.text('chunk_overlap', '200', 'Chunk overlap')
 dbutils.widgets.text('min_chunk_size', '20', 'Min chunk size')
@@ -41,42 +36,95 @@ dbutils.widgets.dropdown('chunk_strategy', 'chunked', ['full', 'chunked', 'seman
 
 # COMMAND ----------
 
-# config
-
-# set to true if you want to get new files from workspace to be included in the database
 volume = dbutils.widgets.get("volume")
 schema = dbutils.widgets.get("schema")
 catalog = dbutils.widgets.get("catalog")
 control_table = dbutils.widgets.get("control_table")
 chunk_table = dbutils.widgets.get("chunk_table")
 source_data_folder = dbutils.widgets.get("source_data_folder")
-chunk_strategy = dbutils.widgets.get("chunk_strategy")  # 'full', 'chunked', 'semantic', 'summary'
+chunk_strategy = dbutils.widgets.get("chunk_strategy")
 chunk_size = int(dbutils.widgets.get("chunk_size"))
 chunk_overlap = int(dbutils.widgets.get("chunk_overlap"))
 min_chunk_size = int(dbutils.widgets.get("min_chunk_size"))
 
+if source_data_folder:
+    source_data_path = f"/Volumes/{catalog}/{schema}/{volume}/{source_data_folder}"
+else:
+    source_data_path = f"/Volumes/{catalog}/{schema}/{volume}"
+
 control_table_fullname = f"{catalog}.{schema}.{control_table}"
 chunk_table_fullname = f"{catalog}.{schema}.{chunk_table}"
 
-# COMMAND ----------
-spark.sql(
-    f"CREATE TABLE IF NOT EXISTS {chunk_table_fullname} (chunk_id STRING NOT NULL, chunk STRING NOT NULL, url STRING, timestamp TIMESTAMP, document_id STRING)")
+ALLOWED_FILE_TYPES = ["docx", "pptx", "pdf", "xlsx"]
+
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Find all relevant files and their URLs (create source table)
+# MAGIC ## Create tables
+
+# COMMAND ----------
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {control_table_fullname} (
+        document_path STRING NOT NULL,
+        document_name STRING NOT NULL,
+        source_url STRING,
+        timestamp TIMESTAMP,
+        last_modified STRING,
+        relevant BOOLEAN,
+        category STRING,
+        document_id STRING NOT NULL
+    )
+""")
+
+spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {chunk_table_fullname} (
+        chunk_id STRING NOT NULL,
+        chunk STRING NOT NULL,
+        url STRING,
+        timestamp TIMESTAMP,
+        document_id STRING
+    )
+""")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Scan volume and register files
+
 # COMMAND ----------
 import os
-import sys
-# Add the current working directory to the Python path, as Databricks only processes folder types, not packages
-sys.path.append(os.path.dirname(os.getcwd()))
+import hashlib
+import datetime
+
+file_entries = dbutils.fs.ls(source_data_path)
+
+new_files = []
+for entry in file_entries:
+    file_path = entry.path
+    file_name = entry.name
+    if not file_name.lower().endswith(tuple(ALLOWED_FILE_TYPES)):
+        continue
+    file_id = hashlib.md5(file_path.encode()).hexdigest()
+    existing = spark.sql(f"SELECT 1 FROM {control_table_fullname} WHERE document_id = '{file_id}'").collect()
+    if not existing:
+        new_files.append((file_path, file_name, "", datetime.datetime.now(), None, True, "", file_id))
+
+if new_files:
+    df = spark.createDataFrame(new_files, ['document_path', 'document_name', 'source_url', 'timestamp', 'last_modified', 'relevant', 'category', 'document_id'])
+    df.write.mode("append").format("delta").saveAsTable(control_table_fullname)
+    print(f"Registered {len(new_files)} new files in control table.")
+else:
+    print("No new files to register.")
+
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # identify file type and run sub sequence for file processing
-# MAGIC # (chunk process)
+# MAGIC ## Chunk files
 
 # COMMAND ----------
+import sys
+sys.path.append(os.path.dirname(os.getcwd()))
+
 from utils.chunk_utils import write_chunks_if_not_exists
 from utils.parser_utils import parse_pdf, parse_docx, parse_pptx, parse_xlsx
 
@@ -85,8 +133,7 @@ files = spark.sql(
 
 for file in files:
     print(f'processing: {file["document_path"]}')
-    if os.path.getsize(file['document_path']) == 0 or file['document_path'].endswith(
-            'Übersicht freigegebene Werbeformen je Domain.xlsx'):  # empty file
+    if os.path.getsize(file['document_path']) == 0:
         print(f"Skipping empty file: {file['document_path']}")
         continue
 
@@ -107,7 +154,6 @@ for file in files:
         continue
 
     for chunk in chunks:
-        # print(chunk)
         write_chunks_if_not_exists(spark, chunk, file['source_url'], file['document_id'], chunk_table_fullname, min_chunk_size)
 
-
+print(f"Done. Processed {len(files)} files.")
